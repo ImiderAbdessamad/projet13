@@ -507,7 +507,6 @@ public class ProjectCollaboratorServiceImpl implements ProjectCollaboratorServic
         }
         return result;
     }
-    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class, readOnly = false)
     public void deleteByProjectId(Long id){
         projectDetailService.deleteByProjectId(id);
     }

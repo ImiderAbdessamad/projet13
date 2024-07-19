@@ -106,6 +106,7 @@ public class ProjectDetailCollaboratorServiceImpl implements ProjectDetailCollab
     public List<ProjectDetail> findByProjectId(Long id){
         return dao.findByProjectId(id);
     }
+    @Transactional
     public int deleteByProjectId(Long id){
         return dao.deleteByProjectId(id);
     }
