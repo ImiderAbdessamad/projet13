@@ -35,43 +35,50 @@ public class GitHubValidationService {
 
     public void gitPushFunction(String localPath, String remotePath, String username, String password) {
         try {
-            // Ouvrir le dépôt existant ou en créer un nouveau
-            Repository localRepo = new FileRepositoryBuilder()
-                    .setGitDir(new File(localPath + "/.git"))
-                    .build();
+            File localDir = new File(localPath);
+            Git git;
 
-            try (Git git = new Git(localRepo)) {
-                // Ajouter tous les fichiers
-                git.add()
-                        .addFilepattern(".")
-                        .call();
 
-                // Vérifier s'il y a des changements à commiter
+            if (new File(localDir, ".git").exists()) {
+                git = Git.open(localDir);
+                System.out.println("Dépôt Git existant ouvert.");
+            } else {
+                git = Git.init().setDirectory(localDir).call();
+                System.out.println("Nouveau dépôt Git initialisé.");
+            }
+
+            try {
+                System.out.println("Ajout de tous les fichiers...");
+                git.add().addFilepattern(".").call();
+
                 Status status = git.status().call();
                 if (!status.isClean()) {
-                    // Créer un commit
-                    git.commit()
-                            .setMessage("Commit automatique")
-                            .call();
+                    System.out.println("Création d'un nouveau commit...");
+                    git.commit().setMessage("Commit automatique").call();
+                } else {
+                    System.out.println("Aucun changement à commiter.");
                 }
 
-                // Configurer le dépôt distant
+                System.out.println("Configuration du dépôt distant...");
                 try {
                     git.remoteAdd()
                             .setName("origin")
                             .setUri(new URIish(remotePath))
                             .call();
+                    System.out.println("Remote 'origin' ajouté.");
                 } catch (Exception e) {
-                    System.out.println("Le remote existe peut-être déjà : " + e.getMessage());
+                    System.out.println("Le remote 'origin' existe peut-être déjà : " + e.getMessage());
                 }
 
-                // Push vers le dépôt distant
+                System.out.println("Tentative de push vers " + remotePath);
                 PushCommand pushCommand = git.push();
                 pushCommand.setCredentialsProvider(new UsernamePasswordCredentialsProvider(username, password));
                 pushCommand.setRemote("origin");
                 pushCommand.call();
 
-                System.out.println("Push réussi vers " + remotePath);
+                System.out.println("Push réussi !");
+            } finally {
+                git.close();
             }
         } catch (Exception e) {
             e.printStackTrace();
