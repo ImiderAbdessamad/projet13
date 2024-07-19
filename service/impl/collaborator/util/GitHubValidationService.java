@@ -1,6 +1,12 @@
 package ma.zs.zyn.service.impl.collaborator.util;
 
 import ma.zs.zyn.bean.core.project.RemoteRepoInfo;
+import org.eclipse.jgit.api.PushCommand;
+import org.eclipse.jgit.api.RemoteAddCommand;
+import org.eclipse.jgit.api.Status;
+import org.eclipse.jgit.internal.storage.file.FileRepository;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.transport.URIish;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -28,52 +34,50 @@ public class GitHubValidationService {
     }
 
     public void gitPushFunction(String localPath, String remotePath, String username, String password) {
-            try {
-                File localRepoDir = new File(localPath);
-                Git git;
+        try {
+            // Ouvrir le dépôt existant ou en créer un nouveau
+            Repository localRepo = new FileRepositoryBuilder()
+                    .setGitDir(new File(localPath + "/.git"))
+                    .build();
 
-                // Vérifier si le dépôt Git existe, sinon l'initialiser
-                if (new File(localRepoDir, ".git").exists()) {
-                    git = Git.open(localRepoDir);
-                } else {
-                    git = Git.init().setDirectory(localRepoDir).call();
-                    System.out.println("Nouveau dépôt Git initialisé à " + localPath);
-                }
+            try (Git git = new Git(localRepo)) {
+                // Ajouter tous les fichiers
+                git.add()
+                        .addFilepattern(".")
+                        .call();
 
-                try {
-                    // Ajouter tous les fichiers (y compris les nouveaux fichiers)
-                    git.add().addFilepattern(".").call();
-
-                    // Vérifier s'il y a des changements à commiter
-                    if (!git.status().call().isClean()) {
-                        // Commit les changements
-                        git.commit().setMessage("Push initial de tout le contenu du dépôt").call();
-                    }
-
-                    // Configurer le dépôt distant si ce n'est pas déjà fait
-                    if (git.getRepository().getRemoteNames().isEmpty()) {
-                        git.remoteAdd()
-                                .setName("origin")
-                                .setUri(new URIish(remotePath))
-                                .call();
-                    }
-
-                    // Push vers le dépôt distant
-                    git.push()
-                            .setCredentialsProvider(new UsernamePasswordCredentialsProvider(username, password))
-                            .setRemote("origin")
-                            .setPushAll()
+                // Vérifier s'il y a des changements à commiter
+                Status status = git.status().call();
+                if (!status.isClean()) {
+                    // Créer un commit
+                    git.commit()
+                            .setMessage("Commit automatique")
                             .call();
-
-                    System.out.println("Push de tout le contenu réussi vers " + remotePath + " !");
-                } finally {
-                    git.close();
                 }
-            } catch (IOException | GitAPIException | URISyntaxException e) {
-                e.printStackTrace();
-                throw new RuntimeException("Erreur lors du push Git: " + e.getMessage(), e);
+
+                // Configurer le dépôt distant
+                try {
+                    git.remoteAdd()
+                            .setName("origin")
+                            .setUri(new URIish(remotePath))
+                            .call();
+                } catch (Exception e) {
+                    System.out.println("Le remote existe peut-être déjà : " + e.getMessage());
+                }
+
+                // Push vers le dépôt distant
+                PushCommand pushCommand = git.push();
+                pushCommand.setCredentialsProvider(new UsernamePasswordCredentialsProvider(username, password));
+                pushCommand.setRemote("origin");
+                pushCommand.call();
+
+                System.out.println("Push réussi vers " + remotePath);
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Erreur lors du push Git: " + e.getMessage(), e);
         }
+    }
 
 
     private boolean validateUser(RemoteRepoInfo remoteRepoInfo, String url, String tokenPrefix, String usernameKey) {
